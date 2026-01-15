@@ -4,7 +4,7 @@ import django.core.exceptions
 import django.core.validators
 from django.core.serializers import deserialize, serialize
 from django.db import transaction
-from django.db.models import Field, Model
+from django.db.models import Field, Model, Min, Subquery
 from django.test import TestCase
 
 import json
@@ -546,3 +546,26 @@ class TestDecimalQuantityFormField(TestCase):
         self.assertEqual(field.clean("2.1").magnitude, expected)  # test string
         self.assertEqual(field.clean(expected).magnitude, expected)  # test Decimal
         self.assertEqual(field.clean(2).magnitude, Decimal("2"))  # test Int
+
+
+@pytest.mark.django_db
+class TestQuantityFieldORM(TestCase):
+    def tearDown(self):
+        CustomUregDecimalHayBale.objects.all().delete()
+
+    def test_custom_ureg_decimal_bulk_update_with_subquery(self):
+        CustomUregDecimalHayBale.objects.create(custom_decimal=Decimal("10"))
+        CustomUregDecimalHayBale.objects.create(
+            custom_decimal=Decimal("5") * ureg.kilocustom,
+        )
+
+        min_value_subquery = CustomUregDecimalHayBale.objects.annotate(
+            twice_min_value=Min("custom_decimal")
+        ).values("twice_min_value")[:1]
+
+        CustomUregDecimalHayBale.objects.all().update(
+            custom_decimal=Subquery(min_value_subquery)
+        )
+
+        obj = CustomUregDecimalHayBale.objects.first()
+        self.assertEqual(str(obj.custom_decimal), "10.00 custom")
