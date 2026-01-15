@@ -145,6 +145,22 @@ class TestCustomDecimalUreg(TestCase):
         obj = CustomUregDecimalHayBale.objects.last()
         self.assertEqual(str(obj.custom_decimal), "5000.00 custom")
 
+    def test_custom_ureg_decimal_bulk_update_with_subquery(self):
+        from django.db.models import Min, Subquery
+
+        # Create simple dummy subquery to get the min value
+        min_value_subquery = CustomUregDecimalHayBale.objects.annotate(
+            twice_min_value=Min("custom_decimal")
+        ).values("twice_min_value")[:1]
+
+        # Update all objects to the lowest value using the subquery
+        CustomUregDecimalHayBale.objects.all().update(
+            custom_decimal=Subquery(min_value_subquery)
+        )
+
+        obj = CustomUregDecimalHayBale.objects.first()
+        self.assertEqual(str(obj.custom_decimal), "10.00 custom")
+
 
 @pytest.mark.django_db
 class TestCustomUreg(TestCase):
@@ -545,4 +561,6 @@ class TestDecimalQuantityFormField(TestCase):
         self.assertEqual(field.clean(2.1).magnitude, expected)  # test float
         self.assertEqual(field.clean("2.1").magnitude, expected)  # test string
         self.assertEqual(field.clean(expected).magnitude, expected)  # test Decimal
+        self.assertEqual(field.clean(2).magnitude, Decimal("2"))  # test Int
+
         self.assertEqual(field.clean(2).magnitude, Decimal("2"))  # test Int
